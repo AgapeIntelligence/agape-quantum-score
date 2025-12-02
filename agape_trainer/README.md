@@ -442,3 +442,205 @@ aqs_hybrid = agape_score_ultralow_latency(hiddens, attn, grads, purity_quantum)
 This enables seamless scaling (e.g., IonQ's 36 #AQ to Willow's 105 qubits) with OPX1000 handling pulse synchronization across vendors.
 
 Sources: IonQ Forte Enterprise [web:0–9]; Google Willow [web:10–19]; OPX1000 Multi-Vendor [web:20–29].
+
+Below is a clean, production-ready README.md section that documents the three modules and includes a polished Inference Loop Integration block. It’s written so you can drop it directly into a repo.
+
+⸻
+
+README — Ethical Scoring System (AQS-Hybrid + Fairness + Quantum Veto)
+
+This package provides three operational layers for hybrid AQS (Agape Quantization Score), fairness estimation, and quantum-purity veto gating. Together, these components form an ethical controller that can be attached to any deep model to stabilize coherence, detect gradient-based bias, and prevent unsafe updates or outputs.
+
+⸻
+
+Modules Overview
+
+1) EthicalScoringBatched (Training Mode)
+
+Purpose:
+High-fidelity fairness analysis using per-sample gradients and group-wise Fisher information.
+This module provides the strongest alignment signal at training time because the model’s updates are steered by AQS coherence and fairness bounds.
+
+Key features:
+	•	Computes true per-sample gradient vectors (batch, params)
+	•	Group-level Fisher information → fairness metric [0,1]
+	•	Hybrid AQS = AI-side instantaneous coherence × quantum purity
+	•	Streaming AQS buffer for continuity
+	•	Veto gate that stops parameter updates when coherence is insufficient
+
+This module is meant for training runs, not inference.
+
+⸻
+
+2) EthicalStep (JAX / CUDA fused)
+
+Purpose:
+High-performance, fused, JIT-compiled variant for GPU training loops. Ideal for TPU/GPU clusters or any environment where speed and determinism are critical.
+
+⸻
+
+3) InferenceGuard (Production Runtime)
+
+Purpose:
+A zero-overhead, inference-only safety controller.
+It does not interact with gradients and adds no latency beyond the AQS + quantum purity calls.
+
+What it provides:
+	•	Streaming AQS during inference
+	•	Hybrid AQS per request
+	•	Fast veto signal (Boolean)
+	•	Optional response shielding or output routing
+
+Use this in your production inference loop.
+
+⸻
+
+Installation
+
+pip install torch jax jaxlib
+
+Your custom modules should be placed in:
+
+aqs_ultralow_latency/
+aqs_realtime/
+ethics/
+
+
+⸻
+
+Inference Guardrail Integration
+
+The InferenceGuard module is designed so you can drop it directly into your generation pipeline. It monitors incoming hidden states, computes hybrid AQS, updates a streaming coherence buffer, and returns a veto boolean.
+
+⸻
+
+InferenceGuard Module
+
+# eth_inference_guard.py
+import torch
+from torch import nn
+from aqs_ultralow_latency import agape_score_ultralow_latency
+from aqs_realtime import quantum_bridge_call
+
+class InferenceGuard(nn.Module):
+    """
+    Lightweight inference-only guardrail.
+    Computes hybrid AQS + streaming coherence.
+    Does not participate in autograd.
+    """
+
+    def __init__(self, veto_threshold=0.78, stream_alpha=0.05):
+        super().__init__()
+        self.veto_threshold = veto_threshold
+        self.alpha = stream_alpha
+        self.register_buffer("aqs_stream", torch.tensor(0.0))
+
+    @torch.no_grad()
+    def assess(self, hiddens, attn=None):
+        """
+        Returns:
+            veto (bool)
+            aqs_instant (float)
+            aqs_stream (float)
+        """
+        aqs_ai = agape_score_ultralow_latency(hiddens, attn, None)["AQS_instant"]
+        purity_q = quantum_bridge_call(hiddens)
+        aqs_hybrid = float(aqs_ai) * float(purity_q)
+
+        # streaming update
+        if float(self.aqs_stream) == 0.0:
+            self.aqs_stream.copy_(torch.tensor(aqs_hybrid))
+        else:
+            self.aqs_stream.mul_(1.0 - self.alpha).add_(self.alpha * aqs_hybrid)
+
+        veto = float(self.aqs_stream) < self.veto_threshold
+        return veto, float(aqs_hybrid), float(self.aqs_stream)
+
+
+⸻
+
+Production Inference Loop Integration
+
+Below is a standard transformer-style inference loop with the guardrail inserted at the correct evaluation layer. This works for any autoregressive model.
+
+from eth_inference_guard import InferenceGuard
+
+model.eval()
+guard = InferenceGuard(veto_threshold=0.78)
+
+def generate_response(model, tokenizer, prompt):
+    # Encode
+    inputs = tokenizer(prompt, return_tensors="pt")
+    
+    # Forward through the model encoder
+    with torch.no_grad():
+        outputs = model(**inputs, output_hidden_states=True, output_attentions=True)
+        hiddens = outputs.hidden_states[-1]
+        attn = outputs.attentions[-1]
+
+    # Run guardrail assessment
+    veto, aqs_now, aqs_stream = guard.assess(hiddens, attn)
+
+    if veto:
+        return {
+            "blocked": True,
+            "message": "Veto: coherence threshold not met.",
+            "aqs_instant": aqs_now,
+            "aqs_stream": aqs_stream
+        }
+
+    # If allowed, generate normally
+    generated = model.generate(
+        **inputs,
+        max_length=200,
+        temperature=0.8,
+        top_p=0.95
+    )
+
+    text = tokenizer.decode(generated[0], skip_special_tokens=True)
+    return {
+        "blocked": False,
+        "output": text,
+        "aqs_instant": aqs_now,
+        "aqs_stream": aqs_stream
+    }
+
+# Example call
+result = generate_response(model, tokenizer, "Explain the boundary of coherent transformation.")
+print(result)
+
+
+⸻
+
+Recommended Operational Flow
+
+Training
+
+Use:
+✓ EthicalScoringBatched OR
+✓ the JAX-fused variant
+
+These modify gradients and guide model updates.
+
+⸻
+
+Inference
+
+Use:
+✓ InferenceGuard
+
+This does not modify gradients.
+It only governs output behavior and monitors coherence fields.
+
+⸻
+
+Telemetry & Logging (Optional)
+
+You can attach streaming logs as:
+
+if veto:
+    log_event("AQS_VETO", aqs_now, aqs_stream, prompt)
+else:
+    log_event("AQS_OK", aqs_now, aqs_stream)
+
+Logging hybrid AQS distributions over time allows you to track coherence fluctuations, emergent patterns, and shifts in the model’s ethical alignment field.
