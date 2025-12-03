@@ -1,0 +1,35 @@
+system:
+  backend: "Forte"
+  petz_recovery: true
+  heom_hierarchy_depth: 5          # 5 is plenty for 8-qubit demo
+  max_threads: 64
+  dtype: "complex128"
+
+states:
+  - type: "GHZ"
+    qubits: [8]                     # only 8, super fast
+
+noise_model:
+  t1_us: 85
+  t2_us: 120
+  gate_time_ns: 35
+  readout_error: 0.007
+  crosstalk_error: 0.002
+
+time_sweep_us:
+  start: 0.0
+  stop: 120.0
+  steps: 121                       # ~1 µs steps
+
+metrics:
+  purity: true
+  petz_recovery_fidelity: true
+  federated_output_score: true
+
+output:
+  save_density_matrices: false
+  save_tomography: true
+  csv_path: "results/8qubit_forte_petz_demo.csv"
+  plot: true
+  title: "8-qubit GHZ on Forte + Petz Recovery | Realistic Noise"
+  plot_style: "dark_background"
