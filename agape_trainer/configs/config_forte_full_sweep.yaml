@@ -1,0 +1,43 @@
+# configs/config_forte_full_sweep.yaml
+# Run with: python fed_ethics_proto_v2.py --config configs/config_forte_full_sweep.yaml
+
+system:
+  backend: "Forte"
+  petz_recovery: true
+  heom_hierarchy_depth: 6
+  temperature_kelvin: 0.015
+  max_threads: 64
+  dtype: "complex128"
+
+states:
+  - type: "GHZ"
+    qubits: [4, 8, 12, 16]
+  - type: "Cat"
+    qubits: [4, 8, 12]
+    alpha: 2.0
+
+noise_model:
+  t1_us: 85
+  t2_us: 120
+  gate_time_ns: 35
+  readout_error: 0.007
+  crosstalk_error: 0.002
+
+time_sweep_us:
+  start: 0.0
+  stop: 100.0
+  steps: 101
+
+metrics:
+  purity: true
+  petz_recovery_fidelity: true
+  node_bias_entropy: true
+  federated_output_score: true
+
+output:
+  save_density_matrices: false
+  save_tomography: true
+  csv_path: "results/forte_petz_full_sweep_20251203.csv"
+  plot: true
+  title: "Forte + Petz Recovery | Full Sweep | 2025-12-03"
+  plot_style: "dark_background"
