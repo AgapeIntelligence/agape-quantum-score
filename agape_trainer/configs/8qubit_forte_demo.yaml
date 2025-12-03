@@ -1,13 +1,17 @@
 system:
   backend: "Forte"
   petz_recovery: true
-  heom_hierarchy_depth: 5          # 5 is plenty for 8-qubit demo
+  heom_hierarchy_depth: 5
   max_threads: 64
   dtype: "complex128"
 
+  # Numerical stabilization term for Petz map inversion.
+  # Ensures stable channel reconstruction under finite precision.
+  petz_regularization: 1e-8
+
 states:
   - type: "GHZ"
-    qubits: [8]                     # only 8, super fast
+    qubits: [8]
 
 noise_model:
   t1_us: 85
@@ -16,20 +20,29 @@ noise_model:
   readout_error: 0.007
   crosstalk_error: 0.002
 
+  # Correlated phase noise approximating reported Forte-class behavior.
+  # Applied as an exponential dephasing channel with rate ~0.08% / µs.
+  correlated_dephasing_rate: 0.0008
+
 time_sweep_us:
   start: 0.0
   stop: 120.0
-  steps: 121                       # ~1 µs steps
+  steps: 241               # 0.5 µs resolution
 
 metrics:
   purity: true
   petz_recovery_fidelity: true
+  node_bias_entropy: true
   federated_output_score: true
 
 output:
   save_density_matrices: false
   save_tomography: true
-  csv_path: "results/8qubit_forte_petz_demo.csv"
+  csv_path: "results/8qubit_forte_demo_final.csv"
   plot: true
-  title: "8-qubit GHZ on Forte + Petz Recovery | Realistic Noise"
+  title: "8-Qubit GHZ | Forte Noise Model | Petz Recovery Enabled"
+
   plot_style: "dark_background"
+  figsize: [10, 6]
+  dpi: 150
+  linewidth: 2.5
