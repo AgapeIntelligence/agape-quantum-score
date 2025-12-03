@@ -1,0 +1,51 @@
+system:
+  backend: "Forte"
+  petz_recovery: true
+  petz_regularization: 1e-9
+
+  dynamical_decoupling: "XY8"
+  dd_interval_us: 5.0
+
+  heom_hierarchy_depth: 5
+  max_threads: 64
+
+states:
+  # Standard Cat state
+  - type: "Cat"
+    qubits: 8
+    alpha: 2.0
+    binomial: false
+
+  # Binomial-encoded Cat (distance-5 behavior)
+  - type: "Cat"
+    qubits: 8
+    alpha: 3.0
+    binomial: true
+
+noise_model:
+  t1_us: 200
+  t2_us: 85
+  gate_time_ns: 35
+  readout_error: 0.007
+
+time_sweep_us:
+  start: 0.0
+  stop: 100.0
+  steps: 201
+
+metrics:
+  purity: true
+  petz_recovery_fidelity: true
+  federated_output_score: true
+
+output:
+  plot: true
+  title: "8-Qubit Cat | Forte + Petz + XY8 | Decoherence Sweep"
+
+  save_tomography: true
+  csv_path: "results/8qubit_cat_hero.csv"
+
+  plot_style: "dark_background"
+  figsize: [10, 6]
+  dpi: 150
+  linewidth: 2.5
